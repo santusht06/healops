@@ -1,0 +1,23 @@
+{
+  "api-gateway": {
+    "status": "running",
+    "port": 8080,
+    "restart_count": 3,
+    "logs_file": "/Users/santushtkotai/Desktop/healops/data/logs/api-gateway.log",
+    "health": "healthy"
+  },
+  "order-db": {
+    "status": "running",
+    "port": 5432,
+    "restart_count": 0,
+    "logs_file": "/Users/santushtkotai/Desktop/healops/data/logs/order-db.log",
+    "health": "healthy"
+  },
+  "cache-cluster": {
+    "status": "running",
+    "port": 6379,
+    "restart_count": 0,
+    "logs_file": "/Users/santushtkotai/Desktop/healops/data/logs/cache-cluster.log",
+    "health": "healthy"
+  }
+}
