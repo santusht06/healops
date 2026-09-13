@@ -3,287 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HealOps — Autonomous AI SRE & Auto-Remediation</title>
+  <meta name="theme-color" content="#09111d">
+  <title>HealOps | SRE Mission Control</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <!-- Background Glow & Grid -->
-  <div class="bg-glow bg-glow-1"></div>
-  <div class="bg-glow bg-glow-2"></div>
-  <div class="grid-overlay"></div>
-
-  <!-- App Header -->
+  <div class="ambient ambient-cyan" aria-hidden="true"></div>
+  <div class="ambient ambient-amber" aria-hidden="true"></div>
+  <div class="grid-overlay" aria-hidden="true"></div>
   <header class="app-header">
-    <div class="header-left">
-      <div class="logo-mark">
-        <span class="logo-icon">🛡️</span>
-      </div>
-      <div class="logo-text">
-        <div class="logo-title-row">
-          <span class="brand-title">HEAL<span class="gradient-text">OPS</span></span>
-          <span class="version-badge">v1.0 STRANDS</span>
-        </div>
-        <span class="brand-subtitle">Autonomous SRE & Cedar Guardrail Remediation</span>
-      </div>
-    </div>
-
-    <div class="header-center">
-      <div class="quick-status-pill" id="agent-status-pill">
-        <span class="pulse-dot idle" id="agent-pulse-dot"></span>
-        <span class="status-label" id="agent-status-text">Agent Idle • Monitoring</span>
-      </div>
-    </div>
-
-    <div class="header-right">
-      <div class="framework-tag">
-        <span class="tag-label">Framework</span>
-        <span class="tag-val">AWS Strands SDK</span>
-      </div>
-      <div class="framework-tag">
-        <span class="tag-label">Policy</span>
-        <span class="tag-val">Cedar RBAC</span>
-      </div>
-      <div class="connection-status connected" id="ws-indicator">
-        <span class="ws-dot"></span>
-        <span id="ws-status-text">Live Socket</span>
-      </div>
-    </div>
+    <div class="brand-block"><div class="logo-mark" aria-hidden="true">H</div><div><div class="brand-line"><span class="brand-title">HEAL<span>OPS</span></span><span class="version-badge">MISSION CONTROL</span></div><p class="brand-subtitle">Autonomous SRE operations center</p></div></div>
+    <div class="header-status" aria-live="polite"><span class="pulse-dot idle" id="agent-pulse-dot" aria-hidden="true"></span><span id="agent-status-text">Agent idle / monitoring</span></div>
+    <div class="header-meta"><span class="meta-tag"><small>FRAMEWORK</small><strong>AWS Strands SDK</strong></span><span class="meta-tag"><small>POLICY</small><strong>Cedar RBAC</strong></span><span class="connection-status connected" id="ws-indicator" aria-live="polite"><span class="ws-dot" aria-hidden="true"></span><span id="ws-status-text">Live socket</span></span></div>
   </header>
-
-  <!-- Main 3-Column Layout -->
   <main class="dashboard-grid">
-    <!-- COLUMN 1: Infrastructure & Chaos -->
-    <aside class="dashboard-column col-infra">
-      <!-- Host Telemetry Card -->
-      <div class="glass-card">
-        <div class="card-header">
-          <div class="card-title">
-            <span class="card-icon">⚡</span>
-            <h3>Cluster Telemetry</h3>
-          </div>
-          <span class="refresh-badge" id="telemetry-refresh-time">Live</span>
-        </div>
-
-        <div class="metrics-grid">
-          <div class="metric-box">
-            <div class="metric-top">
-              <span class="metric-label">CPU Usage</span>
-              <span class="metric-val" id="cpu-val">--%</span>
-            </div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill" id="cpu-bar" style="width: 0%"></div>
-            </div>
-          </div>
-
-          <div class="metric-box">
-            <div class="metric-top">
-              <span class="metric-label">RAM Usage</span>
-              <span class="metric-val" id="ram-val">--%</span>
-            </div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill" id="ram-bar" style="width: 0%"></div>
-            </div>
-          </div>
-
-          <div class="metric-box">
-            <div class="metric-top">
-              <span class="metric-label">Disk Storage</span>
-              <span class="metric-val" id="disk-val">--%</span>
-            </div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill" id="disk-bar" style="width: 0%"></div>
-            </div>
-          </div>
-
-          <div class="metric-box">
-            <div class="metric-top">
-              <span class="metric-label">Redis Cache</span>
-              <span class="metric-val" id="redis-val">-- MB</span>
-            </div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill redis" id="redis-bar" style="width: 25%"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Microservices Health Topology -->
-      <div class="glass-card flex-grow">
-        <div class="card-header">
-          <div class="card-title">
-            <span class="card-icon">🌐</span>
-            <h3>Service Mesh Topology</h3>
-          </div>
-          <span class="badge-count" id="service-count">0</span>
-        </div>
-
-        <div class="service-list" id="services-container">
-          <div class="loading-placeholder">Loading services...</div>
-        </div>
-      </div>
-
-      <!-- Chaos Engineering Trigger Card -->
-      <div class="glass-card chaos-card">
-        <div class="card-header">
-          <div class="card-title">
-            <span class="card-icon">💥</span>
-            <h3>Chaos Engineering Lab</h3>
-          </div>
-          <span class="chip-warning">Live Drill</span>
-        </div>
-        <p class="card-desc">Simulate production failure to observe autonomous Strands Agent triage & Cedar policy interception.</p>
-
-        <div class="chaos-buttons">
-          <button class="btn btn-chaos" id="btn-inject-chaos" onclick="injectChaos()">
-            <span class="btn-icon">⚡</span>
-            <span>Inject 502 Outage (api-gateway)</span>
-          </button>
-          <button class="btn btn-reset" id="btn-reset-chaos" onclick="resetChaos()">
-            <span class="btn-icon">🔄</span>
-            <span>Reset Topology to Healthy</span>
-          </button>
-        </div>
-      </div>
+    <aside class="dashboard-column col-infra" aria-label="Infrastructure controls">
+      <section class="panel telemetry-panel" aria-labelledby="telemetry-heading"><div class="panel-header"><div class="section-heading"><span class="section-kicker">01</span><div><h2 id="telemetry-heading">Cluster telemetry</h2><p>Host resource utilization</p></div></div><span class="live-mark"><i></i><span id="telemetry-refresh-time">Waiting</span></span></div><div class="metrics-grid">
+        <div class="metric-box" data-metric="cpu"><div class="metric-top"><span class="metric-label">CPU usage</span><span class="metric-health waiting" id="cpu-health">WAITING</span></div><strong class="metric-val" id="cpu-val">--%</strong><div class="meter"><span class="meter-fill" id="cpu-bar"></span></div><small class="metric-note">host compute</small></div>
+        <div class="metric-box" data-metric="ram"><div class="metric-top"><span class="metric-label">RAM usage</span><span class="metric-health waiting" id="ram-health">WAITING</span></div><strong class="metric-val" id="ram-val">--%</strong><div class="meter"><span class="meter-fill" id="ram-bar"></span></div><small class="metric-note">memory pressure</small></div>
+        <div class="metric-box" data-metric="disk"><div class="metric-top"><span class="metric-label">Disk usage</span><span class="metric-health waiting" id="disk-health">WAITING</span></div><strong class="metric-val" id="disk-val">--%</strong><div class="meter"><span class="meter-fill" id="disk-bar"></span></div><small class="metric-note">root volume</small></div>
+        <div class="metric-box" data-metric="redis"><div class="metric-top"><span class="metric-label">Redis memory</span><span class="metric-health waiting" id="redis-health">WAITING</span></div><strong class="metric-val" id="redis-val">-- MB</strong><div class="meter"><span class="meter-fill redis" id="redis-bar"></span></div><small class="metric-note" id="redis-note">cache layer</small></div>
+      </div></section>
+      <section class="panel services-panel" aria-labelledby="services-heading"><div class="panel-header"><div class="section-heading"><span class="section-kicker">02</span><div><h2 id="services-heading">Service mesh</h2><p>Managed workload health</p></div></div><span class="count-badge" id="service-count">0</span></div><div class="service-list" id="services-container" aria-live="polite"><div class="loading-placeholder">Loading services...</div></div></section>
+      <section class="panel chaos-panel" aria-labelledby="chaos-heading"><div class="panel-header"><div class="section-heading"><span class="section-kicker warning">03</span><div><h2 id="chaos-heading">Chaos lab</h2><p>Controlled failure injection</p></div></div><span class="chip-warning">LIVE DRILL</span></div><p class="panel-copy">Exercise the autonomous recovery path against <code>api-gateway</code>.</p><div class="chaos-buttons"><button class="btn btn-chaos" id="btn-inject-chaos" type="button"><span aria-hidden="true">!</span> Inject 502 outage</button><button class="btn btn-reset" id="btn-reset-chaos" type="button"><span aria-hidden="true">↺</span> Restore healthy baseline</button></div><p class="action-status" id="action-status" role="status"></p></section>
     </aside>
-
-    <!-- COLUMN 2: Autonomous SRE Agent Stream -->
-    <section class="dashboard-column col-agent">
-      <!-- Incident Alert Banner -->
-      <div class="incident-banner banner-idle" id="incident-banner">
-        <div class="banner-left">
-          <span class="banner-pulse" id="banner-pulse"></span>
-          <div>
-            <div class="banner-title" id="banner-title">System Operational</div>
-            <div class="banner-sub" id="banner-sub">Autonomous watcher scanning telemetry every 5s</div>
-          </div>
-        </div>
-        <div class="banner-right">
-          <span class="stage-tag" id="banner-stage">IDLE</span>
-          <button class="btn btn-sm btn-triage" id="btn-manual-triage" onclick="triggerTriage()">
-            ⚡ Dispatch Triage
-          </button>
-        </div>
-      </div>
-
-      <!-- Human-in-the-Loop Cedar Guardrail Approval Card (Modal Overlay or Top Callout) -->
-      <div class="approval-card hidden" id="hitl-approval-card">
-        <div class="approval-header">
-          <div class="approval-badge">
-            <span class="shield-pulse">🛡️</span>
-            <span>CEDAR POLICY INTERCEPTION — SRE SIGN-OFF REQUIRED</span>
-          </div>
-          <span class="risk-pill critical">RISK: CRITICAL</span>
-        </div>
-
-        <div class="approval-body">
-          <div class="approval-prompt-box" id="hitl-prompt-text">
-            HealOps proposes restarting <strong>api-gateway</strong> to flush deadlocked worker socket pool.
-          </div>
-          <div class="approval-meta">
-            <div class="meta-item">
-              <span class="meta-label">Action:</span>
-              <code id="hitl-tool">restart_service</code>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">Target:</span>
-              <span id="hitl-target">api-gateway</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-label">Policy Rule:</span>
-              <span class="rule-name">POL-003: Service Restarts Require SRE Confirmation</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="approval-actions">
-          <button class="btn btn-approve" id="btn-hitl-approve" onclick="resolveApproval(true)">
-            <span>✓ Approve & Auto-Remediate</span>
-          </button>
-          <button class="btn btn-deny" id="btn-hitl-deny" onclick="resolveApproval(false)">
-            <span>✕ Deny & Escalate to On-Call</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Live Strands Agent Reasoning & Execution Feed -->
-      <div class="glass-card agent-stream-card flex-grow">
-        <div class="card-header">
-          <div class="card-title">
-            <span class="card-icon">🧠</span>
-            <h3>Strands Agent Reasoning & Execution Stream</h3>
-          </div>
-          <div class="agent-mode-tag">
-            <span class="mode-dot"></span>
-            <span>Active Model: <strong>Gemini 2.5 Flash</strong></span>
-          </div>
-        </div>
-
-        <div class="agent-feed" id="agent-feed-container">
-          <!-- Default welcome message -->
-          <div class="agent-step-item welcome-step">
-            <div class="step-avatar">🤖</div>
-            <div class="step-content">
-              <div class="step-meta">
-                <span class="step-title">HealOps Autonomous SRE Initialized</span>
-                <span class="step-time">Ready</span>
-              </div>
-              <p class="step-text">
-                Standing by with <strong>9 diagnostic & remediation tools</strong>, <strong>Redis session memory</strong>, and <strong>Cedar guardrails</strong>. Click "Inject 502 Outage" to watch the full autonomous triage and healing cycle.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Custom Prompt Dispatch Bar -->
-        <div class="feed-input-bar">
-          <input type="text" id="custom-prompt-input" placeholder="Enter custom SRE prompt or target service (e.g. 'Investigate api-gateway latency spike')..." />
-          <button class="btn btn-dispatch" onclick="submitCustomPrompt()">
-            <span>Dispatch Agent</span>
-          </button>
-        </div>
-      </div>
+    <section class="dashboard-column col-agent" aria-label="Agent activity">
+      <section class="incident-banner banner-idle" id="incident-banner" aria-live="polite"><div class="incident-main"><span class="banner-pulse" id="banner-pulse" aria-hidden="true"></span><div><span class="eyebrow">INCIDENT COMMAND</span><h1 id="banner-title">System operational</h1><p id="banner-sub">Autonomous watcher scanning telemetry every 5s</p></div></div><div class="incident-controls"><span class="stage-tag" id="banner-stage">IDLE</span><button class="btn btn-triage" id="btn-manual-triage" type="button"><span aria-hidden="true">↗</span> Dispatch triage</button></div></section>
+      <section class="approval-card hidden" id="hitl-approval-card" role="dialog" aria-modal="false" aria-labelledby="approval-heading" aria-describedby="hitl-prompt-text"><div class="approval-header"><div class="approval-badge"><span class="approval-icon" aria-hidden="true">!</span><div><span class="eyebrow">CEDAR POLICY INTERCEPTION</span><h2 id="approval-heading">Operator sign-off required</h2></div></div><span class="risk-pill critical">CRITICAL RISK</span></div><div class="approval-prompt-box" id="hitl-prompt-text">HealOps proposes restarting <strong>api-gateway</strong>.</div><div class="approval-meta"><span><small>ACTION</small><code id="hitl-tool">restart_service</code></span><span><small>TARGET</small><strong id="hitl-target">api-gateway</strong></span><span><small>RULE</small><strong>POL-003 / SRE confirmation</strong></span></div><div class="approval-actions"><button class="btn btn-approve" id="btn-hitl-approve" type="button">Approve remediation</button><button class="btn btn-deny" id="btn-hitl-deny" type="button">Deny and escalate</button></div></section>
+      <section class="panel agent-stream-card" aria-labelledby="agent-heading"><div class="panel-header"><div class="section-heading"><span class="section-kicker">04</span><div><h2 id="agent-heading">Agent execution stream</h2><p>Investigation timeline and tool activity</p></div></div><span class="model-tag"><i></i> Active model: <strong id="model-name">Gemini</strong></span></div><div class="agent-feed" id="agent-feed-container" aria-live="polite" aria-label="Agent event timeline"><div class="agent-step-item welcome-step"><div class="step-marker">01</div><div class="step-content"><div class="step-meta"><span class="step-type">SYSTEM READY</span><time>READY</time></div><h3>HealOps autonomous SRE initialized</h3><p>Standing by with diagnostic tools, session memory, and Cedar guardrails. Inject a controlled outage to begin a recovery cycle.</p><span class="step-tool-badge">9 tools available</span></div></div></div><form class="feed-input-bar" id="prompt-form"><label class="sr-only" for="custom-prompt-input">Incident prompt</label><input type="text" id="custom-prompt-input" placeholder="Describe an incident to investigate..." autocomplete="off"><button class="btn btn-dispatch" type="submit">Dispatch agent <span aria-hidden="true">↗</span></button></form></section>
     </section>
-
-    <!-- COLUMN 3: Audit Trail & Runbook Memory -->
-    <aside class="dashboard-column col-audit">
-      <!-- SOC-2 Compliance Audit Stream -->
-      <div class="glass-card flex-grow">
-        <div class="card-header">
-          <div class="card-title">
-            <span class="card-icon">📜</span>
-            <h3>SOC-2 Audit Trail</h3>
-          </div>
-          <span class="chip-audit">Zero-Trust</span>
-        </div>
-        <p class="card-desc">Cryptographically logged tool decisions & policy checks.</p>
-
-        <div class="audit-stream" id="audit-stream-container">
-          <div class="loading-placeholder">Streaming audit logs...</div>
-        </div>
-      </div>
-
-      <!-- Past Post-Mortem Runbook Memory -->
-      <div class="glass-card postmortem-card">
-        <div class="card-header">
-          <div class="card-title">
-            <span class="card-icon">📚</span>
-            <h3>Post-Mortem Runbook Memory</h3>
-          </div>
-          <span class="badge-count" id="postmortem-count">0</span>
-        </div>
-        <p class="card-desc">Learned incident runbooks from past outages.</p>
-
-        <div class="postmortem-list" id="postmortem-container">
-          <div class="loading-placeholder">Loading runbooks...</div>
-        </div>
-      </div>
-    </aside>
+    <aside class="dashboard-column col-audit" aria-label="Audit and operational memory"><section class="panel audit-panel" aria-labelledby="audit-heading"><div class="panel-header"><div class="section-heading"><span class="section-kicker">05</span><div><h2 id="audit-heading">SOC-2 audit trail</h2><p>Policy and tool decisions</p></div></div><span class="chip-audit">ZERO TRUST</span></div><div class="audit-stream" id="audit-stream-container" aria-live="polite"><div class="loading-placeholder">Loading audit records...</div></div></section><section class="panel postmortem-panel" aria-labelledby="memory-heading"><div class="panel-header"><div class="section-heading"><span class="section-kicker">06</span><div><h2 id="memory-heading">Runbook memory</h2><p>Historical incident knowledge</p></div></div><span class="count-badge" id="postmortem-count">0</span></div><div class="postmortem-list" id="postmortem-container" aria-live="polite"><div class="loading-placeholder">Loading runbooks...</div></div></section></aside>
   </main>
-
-  <!-- Audio elements / Notification sounds -->
   <script src="/app.js"></script>
 </body>
 </html>
