@@ -8,6 +8,9 @@ let pollTimer = null;
 let activeRequest = false;
 let approvalBusy = false;
 let activeIncidentId = null;
+let currentStage = "IDLE";
+let triageInFlight = false;
+let triageDispatchTimer = null;
 const seenEventKeys = new Set();
 
 const $ = (id) => document.getElementById(id);
@@ -118,15 +121,23 @@ function handleLiveEvent(message) {
       break;
     case "INCIDENT_TRIGGERED":
       activeIncidentId = data.incident_id || null;
+      triageInFlight = false;
+      if (triageDispatchTimer) window.clearTimeout(triageDispatchTimer);
       seenEventKeys.clear();
       seenEventKeys.add(`INCIDENT_TRIGGERED:${activeIncidentId}:event`);
       setIncidentState(data);
       appendAgentFeedItem({ title: `Incident detected: ${data.service}`, text: `Symptom: ${data.description}\nAuto-dispatching SRE investigation.`, tool: "health_watcher", time, type: "DETECTION", alert: true });
       fetchServices();
-      window.setTimeout(() => triggerTriage(data.service), 800);
+      const incidentId = activeIncidentId;
+      triageDispatchTimer = window.setTimeout(() => {
+        triageDispatchTimer = null;
+        if (activeIncidentId === incidentId && currentStage === "DETECTED") triggerTriage(data.service);
+      }, 800);
       break;
     case "CHAOS_RESET":
       activeIncidentId = null;
+      triageInFlight = false;
+      if (triageDispatchTimer) { window.clearTimeout(triageDispatchTimer); triageDispatchTimer = null; }
       seenEventKeys.clear();
       resetIncidentUI();
       fetchServices();
@@ -134,10 +145,11 @@ function handleLiveEvent(message) {
       break;
     case "TRIAGE_STARTED":
       activeIncidentId = data.incident_id || activeIncidentId;
+      triageInFlight = true;
       setIncidentStage("INVESTIGATING", data.service);
       break;
     case "AGENT_THOUGHT":
-      if ((data.title || "").toLowerCase().includes("aborted")) setIncidentStage("ABORTED");
+      if ((data.title || "").toLowerCase().includes("aborted")) { triageInFlight = false; setIncidentStage("ABORTED"); }
       else if ((data.title || "").toLowerCase().includes("executing auto-remediation")) setIncidentStage("REMEDIATING");
       else if (data.step >= 3) updateLifecycle("DIAGNOSIS");
       appendAgentFeedItem({ title: data.title || "Agent update", text: data.thought, tool: data.tool, time, type: eventTypeForTool(data.tool), alert: (data.title || "").toLowerCase().includes("aborted") });
@@ -149,6 +161,7 @@ function handleLiveEvent(message) {
       break;
     case "INCIDENT_RESOLVED":
       activeIncidentId = data.incident_id || activeIncidentId;
+      triageInFlight = false;
       setResolvedUI(data);
       appendAgentFeedItem({ title: `Incident healed: ${data.service}`, text: `Remediation verified.\nDetails: ${data.result}\nMTTR: ${data.duration}\nPost-mortem indexed to runbook memory.`, tool: "postmortem_indexer", time, type: "RESOLUTION", resolved: true });
       fetchServices();
@@ -288,18 +301,19 @@ function appendAgentFeedItem({ title, text, tool, time, type = "AGENT", alert = 
 function eventTypeForTool(tool) { if (tool === "lookup_past_incidents") return "CORRELATION"; if (tool === "inspect_service_logs" || tool === "get_system_telemetry") return "DIAGNOSTIC"; if (tool === "restart_service") return "REMEDIATION"; return "AGENT"; }
 function normalizeStage(stage) { return String(stage || "IDLE").toUpperCase().replaceAll("_", " "); }
 function setIncidentState(incident) { const normalized = normalizeStage(incident.stage); setIncidentStage(normalized, incident.service); const copy = stageCopy[normalized] || stageCopy.DETECTED; bannerSub.textContent = incident.description || copy.sub; }
-function setIncidentStage(stage, service) { const normalized = normalizeStage(stage); const copy = stageCopy[normalized] || stageCopy.IDLE; incidentBanner.className = `incident-banner ${normalized === "IDLE" || normalized === "RESOLVED" ? "banner-idle" : "banner-incident"} stage-${normalized.toLowerCase().replaceAll(" ", "-")}`; bannerTitle.textContent = service && normalized !== "IDLE" && normalized !== "RESOLVED" ? `${copy.title}: ${service}` : copy.title; bannerSub.textContent = copy.sub; bannerStage.textContent = normalized; agentStatusText.textContent = copy.status; agentPulseDot.className = `pulse-dot ${copy.mode}`; updateLifecycle(normalized); }
-function updateLifecycle(stage) { const normalized = normalizeStage(stage); const currentByStage = { DETECTED: 0, INVESTIGATING: 1, DIAGNOSIS: 2, "AWAITING APPROVAL": 4, REMEDIATING: 5, RESOLVED: 7, ABORTED: 4 }; const current = currentByStage[normalized]; lifecycleItems.forEach((item, index) => { item.classList.remove("complete", "current", "failed"); if (current === undefined || normalized === "IDLE") return; if (normalized === "ABORTED" && index === 4) item.classList.add("failed"); else if (index < current || (normalized === "RESOLVED" && index < 7)) item.classList.add("complete"); else if (index === current) item.classList.add("current"); }); }
-function resetIncidentUI() { currentApprovalId = null; approvalBusy = false; hitlCard.classList.add("hidden"); setBusy([approveButton, denyButton], false); setIncidentStage("IDLE"); }
+function setIncidentStage(stage, service) { const normalized = normalizeStage(stage); currentStage = normalized; const copy = stageCopy[normalized] || stageCopy.IDLE; incidentBanner.className = `incident-banner ${normalized === "IDLE" || normalized === "RESOLVED" ? "banner-idle" : "banner-incident"} stage-${normalized.toLowerCase().replaceAll(" ", "-")}`; bannerTitle.textContent = service && normalized !== "IDLE" && normalized !== "RESOLVED" ? `${copy.title}: ${service}` : copy.title; bannerSub.textContent = copy.sub; bannerStage.textContent = normalized; agentStatusText.textContent = copy.status; agentPulseDot.className = `pulse-dot ${copy.mode}`; updateLifecycle(normalized); updateControlAvailability(); }
+function updateLifecycle(stage) { const normalized = normalizeStage(stage); const currentByStage = { DETECTED: 0, INVESTIGATING: 1, DIAGNOSIS: 2, "AWAITING APPROVAL": 4, REMEDIATING: 5, RESOLVED: 7, ABORTED: 4 }; const current = currentByStage[normalized]; lifecycleItems.forEach((item, index) => { item.classList.remove("complete", "current", "failed"); item.removeAttribute("aria-current"); const label = item.dataset.lifecycle; if (current === undefined || normalized === "IDLE") { item.setAttribute("aria-label", `${label}, not started`); return; } if (normalized === "ABORTED" && index === 4) { item.classList.add("failed"); item.setAttribute("aria-label", `${label}, failed`); } else if (index < current || (normalized === "RESOLVED" && index < 7)) { item.classList.add("complete"); item.setAttribute("aria-label", `${label}, complete`); } else if (index === current) { item.classList.add("current"); item.setAttribute("aria-current", "step"); item.setAttribute("aria-label", `${label}, current`); } else { item.setAttribute("aria-label", `${label}, pending`); } }); }
+function resetIncidentUI() { currentApprovalId = null; approvalBusy = false; triageInFlight = false; hitlCard.classList.add("hidden"); setBusy([approveButton, denyButton], false); setIncidentStage("IDLE"); }
 function setResolvedUI(data) { currentApprovalId = null; hitlCard.classList.add("hidden"); setIncidentStage("RESOLVED", data.service); bannerSub.textContent = `Auto-healed in ${data.duration || "the recovery window"}. System running normally.`; }
 function showHitlApproval(data) { currentApprovalId = data.approval_id; approvalBusy = false; hitlTool.textContent = data.tool_name || "restart_service"; hitlTarget.textContent = data.service_name || "target"; hitlPromptText.textContent = data.prompt || data.policy || "Critical remediation requires operator approval."; approvalStatus.textContent = "Approval request received. Review the proposed action before continuing."; approvalStatus.className = "approval-status"; setBusy([approveButton, denyButton], false); hitlCard.classList.remove("hidden", "expired"); approveButton.focus(); }
 
-async function resolveApproval(approved) { if (!currentApprovalId || approvalBusy) return; const approvalId = currentApprovalId; approvalBusy = true; approvalStatus.textContent = approved ? "Submitting approval to Cedar..." : "Submitting denial to Cedar..."; approvalStatus.className = "approval-status"; setBusy([approveButton, denyButton], true); try { const result = await requestJson("/api/remediation/decide", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ approval_id: approvalId, approved }) }); if (result.status === "NOT_FOUND") { currentApprovalId = null; approvalStatus.textContent = "Approval expired or is no longer available."; approvalStatus.className = "approval-status error"; hitlCard.classList.add("expired"); return; } approvalStatus.textContent = "Decision recorded. Cedar has released the workflow."; approvalStatus.className = "approval-status success"; appendAgentFeedItem({ title: approved ? "Operator approved remediation" : "Operator denied remediation", text: approved ? "Cedar authorization confirmed. Agent proceeding." : "Authorization denied. Agent escalated to on-call.", tool: "cedar_guard", time: new Date().toLocaleTimeString(), type: "POLICY", intervention: true, alert: !approved }); if (!approved) setIncidentStage("ABORTED"); window.setTimeout(() => hitlCard.classList.add("hidden"), 700); } catch (error) { console.error("[HealOps] Remediation decision failed", error); approvalStatus.textContent = "Decision could not be recorded. Check the connection and retry."; approvalStatus.className = "approval-status error"; } finally { if (currentApprovalId) setBusy([approveButton, denyButton], false); approvalBusy = false; } }
+async function resolveApproval(approved) { if (!currentApprovalId || approvalBusy) return; const approvalId = currentApprovalId; approvalBusy = true; approvalStatus.textContent = approved ? "Submitting approval to Cedar..." : "Submitting denial to Cedar..."; approvalStatus.className = "approval-status"; setBusy([approveButton, denyButton], true); try { const result = await requestJson("/api/remediation/decide", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ approval_id: approvalId, approved }) }); if (result.status === "NOT_FOUND") { currentApprovalId = null; approvalStatus.textContent = "Approval expired or is no longer available."; approvalStatus.className = "approval-status error"; hitlCard.classList.add("expired"); return; } currentApprovalId = null; approvalStatus.textContent = "Decision recorded. Cedar has released the workflow."; approvalStatus.className = "approval-status success"; appendAgentFeedItem({ title: approved ? "Operator approved remediation" : "Operator denied remediation", text: approved ? "Cedar authorization confirmed. Agent proceeding." : "Authorization denied. Agent escalated to on-call.", tool: "cedar_guard", time: new Date().toLocaleTimeString(), type: "POLICY", intervention: true, alert: !approved }); if (!approved) { triageInFlight = false; setIncidentStage("ABORTED"); } window.setTimeout(() => hitlCard.classList.add("hidden"), 700); } catch (error) { console.error("[HealOps] Remediation decision failed", error); approvalStatus.textContent = "Decision could not be recorded. Check the connection and retry."; approvalStatus.className = "approval-status error"; } finally { if (currentApprovalId) setBusy([approveButton, denyButton], false); approvalBusy = false; } }
 async function injectChaos() { if (activeRequest) return; appendAgentFeedItem({ title: "Chaos drill armed", text: "Injecting simulated HTTP 502 failure into api-gateway.", tool: "chaos_injector", time: new Date().toLocaleTimeString(), type: "DETECTION", alert: true }); await performAction("/api/chaos/inject", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ service_name: "api-gateway", failure_type: "502_bad_gateway" }) }, "Outage injected"); }
 async function resetChaos() { await performAction("/api/chaos/reset", { method: "POST" }, "Healthy baseline restored"); }
-async function triggerTriage(serviceName = "api-gateway") { if (activeRequest) return; try { await requestJson("/api/triage/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ service_name: serviceName, role: "oncall" }) }); } catch (error) { showActionError("Unable to dispatch triage. Check the connection and try again.", error); } }
+async function triggerTriage(serviceName = "api-gateway") { if (activeRequest || triageInFlight) return; triageInFlight = true; updateControlAvailability(); try { await requestJson("/api/triage/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ service_name: serviceName, role: "oncall" }) }); } catch (error) { triageInFlight = false; updateControlAvailability(); showActionError("Unable to dispatch triage. Check the connection and try again.", error); } }
 async function submitCustomPrompt() { const prompt = promptInput.value.trim(); if (!prompt || activeRequest) return; promptInput.value = ""; appendAgentFeedItem({ title: "Operator prompt dispatched", text: prompt, tool: "user_dispatch", time: new Date().toLocaleTimeString(), type: "OPERATOR" }); let service = "api-gateway"; const lower = prompt.toLowerCase(); if (lower.includes("order")) service = "order-service"; else if (lower.includes("payment")) service = "payment-service"; else if (lower.includes("auth")) service = "auth-service"; try { await requestJson("/api/triage/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ service_name: service, incident_description: prompt, role: "oncall" }) }); } catch (error) { showActionError("Unable to dispatch the incident prompt. Check the connection and try again.", error); } }
-async function performAction(url, options, successMessage) { activeRequest = true; setBusy([injectButton, resetButton, triageButton], true); try { await requestJson(url, options); actionStatus.textContent = successMessage; actionStatus.className = "action-status"; } catch (error) { showActionError("Unable to complete that action. Check the connection and try again.", error); } finally { activeRequest = false; setBusy([injectButton, resetButton, triageButton], false); } }
+async function performAction(url, options, successMessage) { activeRequest = true; updateControlAvailability(); try { await requestJson(url, options); actionStatus.textContent = successMessage; actionStatus.className = "action-status"; } catch (error) { showActionError("Unable to complete that action. Check the connection and try again.", error); } finally { activeRequest = false; updateControlAvailability(); } }
+function updateControlAvailability() { injectButton.disabled = activeRequest || (currentStage !== "IDLE" && currentStage !== "RESOLVED"); resetButton.disabled = activeRequest; triageButton.disabled = activeRequest || triageInFlight || !["IDLE", "DETECTED"].includes(currentStage); }
 function setBusy(elements, busy) { elements.forEach((element) => { element.disabled = busy; }); }
 function showActionError(message, error) { console.error("[HealOps]", message, error); actionStatus.textContent = message; actionStatus.className = "action-status error"; }
 function renderMessage(container, message, error = false) { container.replaceChildren(); const element = document.createElement("div"); element.className = `loading-placeholder ${error ? "error" : ""}`; element.textContent = message; container.appendChild(element); }
