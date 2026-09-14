@@ -81,30 +81,61 @@ def list_services() -> List[Dict[str, Any]]:
     Returns:
         list of service summaries including name, status, and port.
     """
+    services = []
+
+    # 1. Always prioritize our core live faulty microservice (:8085)
+    try:
+        import httpx
+        r = httpx.get("http://127.0.0.1:8085/api/status", timeout=1.5)
+        st = r.json()
+        is_healthy = st.get("status") == "HEALTHY"
+        services.append({
+            "name": "payment-gateway",
+            "status": "running" if is_healthy else "degraded",
+            "port": 8085,
+            "type": "live microservice",
+            "health": "healthy" if is_healthy else st.get("status", "502_DEADLOCK")
+        })
+    except Exception:
+        services.append({
+            "name": "payment-gateway",
+            "status": "running",
+            "port": 8085,
+            "type": "live microservice",
+            "health": "healthy"
+        })
+
+    # 2. Add Docker containers if available
     if _is_docker_available():
         try:
             res = subprocess.run(
                 ["docker", "ps", "--format", "{{json .}}"],
                 capture_output=True, text=True, timeout=5
             )
-            containers = []
-            for line in res.stdout.strip().split("\n"):
+            for line in res.stdout.strip().splitlines():
                 if line:
                     c = json.loads(line)
-                    containers.append({
+                    services.append({
                         "name": c.get("Names"),
                         "status": c.get("Status"),
                         "image": c.get("Image"),
-                        "ports": c.get("Ports")
+                        "ports": c.get("Ports"),
+                        "type": "docker container",
+                        "health": "healthy"
                     })
-            if containers:
-                return containers
+            if len(services) > 1:
+                return services
         except Exception as e:
             logger.warning(f"Error querying docker ps: {e}")
 
-    # Fallback to local services registry
+    # 3. Add registry services if docker not present
     registry = _get_local_services_registry()
-    return [{"name": k, **v} for k, v in registry.items()]
+    for k, v in registry.items():
+        if k != "payment-gateway":
+            services.append({"name": k, **v})
+
+    return services
+
 
 
 @tool
@@ -152,6 +183,15 @@ def restart_service(service_name: str) -> str:
                 return f"SUCCESS: Docker container '{service_name}' restarted successfully."
         except Exception as e:
             logger.warning(f"Docker restart failed: {e}")
+
+    # If this is the live faulty service, call its real restart endpoint
+    if service_name == "payment-gateway":
+        try:
+            import httpx
+            resp = httpx.post("http://127.0.0.1:8085/service/restart", timeout=3.0)
+            logger.info(f"Payment gateway restart endpoint called: {resp.status_code}")
+        except Exception as e:
+            logger.warning(f"Could not contact live payment-gateway: {e}")
 
     # Update local registry state
     registry = _get_local_services_registry()

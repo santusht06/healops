@@ -1,3 +1,4 @@
+import websockets
 """FastAPI Backend Server for HealOps Autonomous SRE Agent (Layer 4).
 
 Provides:
@@ -82,9 +83,106 @@ async def broadcast_event(event_type: str, data: Dict[str, Any]):
             connected_clients.remove(dc)
 
 
+
+
+async def bridge_faulty_service_logs():
+    """Bridge live logs from the faulty payment-gateway microservice into HealOps WebSocket."""
+    while True:
+        try:
+            async with websockets.connect("ws://127.0.0.1:8085/ws/logs") as ws_client:
+                async for message in ws_client:
+                    log_entry = json.loads(message)
+                    await broadcast_event("LIVE_LOG_LINE", log_entry)
+        except Exception:
+            await asyncio.sleep(2.0)
+
+@app.on_event("startup")
+async def on_startup():
+    asyncio.create_task(bridge_faulty_service_logs())
+
 # ==========================================
 # REST API Endpoints
 # ==========================================
+
+
+@app.get("/api/faulty/status")
+async def api_faulty_status():
+    """Fetch live state from the intentional faulty microservice (:8085)."""
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            resp = await client.get("http://127.0.0.1:8085/api/status", timeout=2.0)
+            return resp.json()
+    except Exception as e:
+        return {"status": "OFFLINE", "error": str(e)}
+
+@app.post("/api/faulty/trigger-deadlock")
+async def api_faulty_deadlock():
+    """Trigger connection pool deadlock on payment-gateway (:8085) and alert HealOps."""
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            resp = await client.post("http://127.0.0.1:8085/fault/deadlock", timeout=3.0)
+            fault_res = resp.json()
+    except Exception as e:
+        fault_res = {"error": str(e)}
+
+    # Update services registry
+    services_file = os.path.join(settings.DATA_DIR, "services_registry.json")
+    if os.path.exists(services_file):
+        with open(services_file, "r") as f:
+            reg = json.load(f)
+        if "payment-gateway" in reg:
+            reg["payment-gateway"]["status"] = "degraded"
+            reg["payment-gateway"]["health"] = "502_DEADLOCK"
+            with open(services_file, "w") as f:
+                json.dump(reg, f, indent=2)
+
+    active_incident.update({
+        "is_active": True,
+        "incident_id": f"INC-{int(time.time())}",
+        "service": "payment-gateway",
+        "description": "HTTP 502 Bad Gateway: Payment & Checkout Gateway worker pool deadlocked in epoll_wait",
+        "stage": "DETECTED",
+        "started_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    })
+
+    await broadcast_event("INCIDENT_TRIGGERED", active_incident)
+    return {"status": "DEADLOCK_ACTIVE", "incident": active_incident, "fault": fault_res}
+
+@app.post("/api/faulty/reset")
+async def api_faulty_reset():
+    """Reset payment-gateway (:8085) back to healthy state."""
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            resp = await client.post("http://127.0.0.1:8085/fault/reset", timeout=3.0)
+            fault_res = resp.json()
+    except Exception as e:
+        fault_res = {"error": str(e)}
+
+    # Update services registry
+    services_file = os.path.join(settings.DATA_DIR, "services_registry.json")
+    if os.path.exists(services_file):
+        with open(services_file, "r") as f:
+            reg = json.load(f)
+        if "payment-gateway" in reg:
+            reg["payment-gateway"]["status"] = "running"
+            reg["payment-gateway"]["health"] = "healthy"
+            with open(services_file, "w") as f:
+                json.dump(reg, f, indent=2)
+
+    active_incident.update({
+        "is_active": False,
+        "incident_id": None,
+        "service": None,
+        "description": None,
+        "stage": "IDLE",
+        "started_at": None
+    })
+
+    await broadcast_event("CHAOS_RESET", {"status": "ALL_SERVICES_HEALTHY"})
+    return {"status": "RESET_COMPLETED", "result": fault_res}
 
 @app.get("/api/health")
 def api_health():

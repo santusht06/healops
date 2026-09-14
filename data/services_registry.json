@@ -1,8 +1,15 @@
 {
+  "payment-gateway": {
+    "status": "running",
+    "port": 8085,
+    "restart_count": 1,
+    "logs_file": "/Users/santushtkotai/Desktop/healops/data/logs/payment-gateway.log",
+    "health": "healthy"
+  },
   "api-gateway": {
     "status": "running",
     "port": 8080,
-    "restart_count": 3,
+    "restart_count": 0,
     "logs_file": "/Users/santushtkotai/Desktop/healops/data/logs/api-gateway.log",
     "health": "healthy"
   },
