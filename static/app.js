@@ -1,3 +1,28 @@
+// Dynamic API & WebSocket host detection
+function getBackendUrl() {
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    return "";
+  }
+  if (window.location.hostname.includes("vercel.app") || window.location.hostname === "healops.sharexpress.in") {
+    return "https://healops-api.sharexpress.in";
+  }
+  return "";
+}
+
+function getWebSocketUrl() {
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${window.location.host}/ws/stream`;
+  }
+  if (window.location.hostname.includes("vercel.app") || window.location.hostname === "healops.sharexpress.in") {
+    return "wss://healops-api.sharexpress.in/ws/stream";
+  }
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/ws/stream`;
+}
+
+const API_BASE = getBackendUrl();
+
 /**
  * HealOps Autonomous SRE Mission Control Frontend
  * Real-time WebSocket + REST Client for Strands Agent, Cedar Guardrails & Faulty Service Log Tail
@@ -64,9 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // WebSocket Handling
 // ==========================================================
 function initWebSocket() {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const host = window.location.host || "localhost:8000";
-  const wsUrl = `${protocol}//${host}/ws/stream`;
+  const wsUrl = getWebSocketUrl();
 
   ws = new WebSocket(wsUrl);
 
@@ -232,7 +255,7 @@ async function fetchInitialData() {
 
 async function fetchTelemetry() {
   try {
-    const res = await fetch("/api/telemetry");
+    const res = await fetch(`${API_BASE}/api/telemetry");
     if (!res.ok) return;
     const data = await res.json();
     if (data.system) updateTelemetryUI(data.system, data.redis);
@@ -262,7 +285,7 @@ function updateTelemetryUI(sys, redis) {
 
 async function fetchServices() {
   try {
-    const res = await fetch("/api/services");
+    const res = await fetch(`${API_BASE}/api/services");
     if (!res.ok) return;
     const data = await res.json();
     renderServices(data.services || []);
@@ -297,7 +320,7 @@ function renderServices(services) {
 
 async function fetchAuditLogs() {
   try {
-    const res = await fetch("/api/audit?limit=25");
+    const res = await fetch(`${API_BASE}/api/audit?limit=25");
     if (!res.ok) return;
     const data = await res.json();
     renderAuditLogs(data.audit_logs || []);
@@ -334,7 +357,7 @@ function renderAuditLogs(logs) {
 
 async function fetchPostmortems() {
   try {
-    const res = await fetch("/api/postmortems");
+    const res = await fetch(`${API_BASE}/api/postmortems");
     if (!res.ok) return;
     const data = await res.json();
     renderPostmortems(data.postmortems || []);
@@ -443,7 +466,7 @@ async function resolveApproval(approved) {
   if (!currentApprovalId) return;
 
   try {
-    const res = await fetch("/api/remediation/decide", {
+    const res = await fetch(`${API_BASE}/api/remediation/decide", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -474,7 +497,7 @@ async function resolveApproval(approved) {
 async function injectPaymentDeadlock() {
   try {
     appendTerminalLine("critical", ">>> OPERATOR DRILL: INJECTING WORKER POOL DEADLOCK ON :8085 <<<");
-    const res = await fetch("/api/faulty/trigger-deadlock", { method: "POST" });
+    const res = await fetch(`${API_BASE}/api/faulty/trigger-deadlock", { method: "POST" });
     const data = await res.json();
     console.log("Payment deadlock triggered:", data);
   } catch (err) {
@@ -491,7 +514,7 @@ async function injectChaos() {
       time: new Date().toLocaleTimeString()
     });
 
-    const res = await fetch("/api/chaos/inject", {
+    const res = await fetch(`${API_BASE}/api/chaos/inject", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ service_name: "api-gateway", failure_type: "502_bad_gateway" })
@@ -505,8 +528,8 @@ async function injectChaos() {
 
 async function resetAllServices() {
   try {
-    await fetch("/api/faulty/reset", { method: "POST" });
-    await fetch("/api/chaos/reset", { method: "POST" });
+    await fetch(`${API_BASE}/api/faulty/reset", { method: "POST" });
+    await fetch(`${API_BASE}/api/chaos/reset", { method: "POST" });
     appendTerminalLine("info", ">>> ALL SERVICES RESET TO CLEAN BASELINE STATE <<<");
     fetchServices();
   } catch (err) {
@@ -516,7 +539,7 @@ async function resetAllServices() {
 
 async function triggerTriage(serviceName = "payment-gateway") {
   try {
-    const res = await fetch("/api/triage/start", {
+    const res = await fetch(`${API_BASE}/api/triage/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ service_name: serviceName, role: "oncall" })
@@ -544,7 +567,7 @@ async function submitCustomPrompt() {
   if (prompt.includes("gateway")) service = "api-gateway";
   else if (prompt.includes("db") || prompt.includes("database")) service = "order-db";
 
-  await fetch("/api/triage/start", {
+  await fetch(`${API_BASE}/api/triage/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
