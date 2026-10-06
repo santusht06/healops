@@ -82,6 +82,8 @@ flowchart TB
 ### 1. AWS Strands Agents SDK Core
 - Uses official AWS open-source agent framework (`strands-agents`).
 - Features a **Multi-Model Brain Factory**: natively supports Amazon Bedrock (Claude 3.5 Sonnet / Haiku), Google Gemini 2.5 Flash, OpenAI GPT-4o, Anthropic Claude, and local Ollama.
+- Persistent session memory powered by `strands-redis-session-manager` with graceful local disk fallback.
+
 ### 2. Comprehensive SRE Diagnostic & Remediation Tools
 HealOps provides 9 production-grade SRE tools registered directly into the Strands Agent:
 1. `get_system_telemetry`: Real-time CPU, RAM, Disk, Load averages via `psutil`.
@@ -139,7 +141,7 @@ cp .env.example .env
 ```bash
 python server.py
 ```
-Open your browser to: **`http://localhost:8000`**
+Open your browser to: **`[http://localhost:8000`**](http://localhost:8000`**)
 
 ---
 
