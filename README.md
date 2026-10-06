@@ -1,4 +1,6 @@
 # 🛡️ HealOps — Autonomous SRE & Incident Auto-Remediation Agent
+
+![AI Maintained](https://img.shields.io/badge/readme-AI%20maintained-blue)
 ### *Self-Healing Cloud Infrastructure Powered by AWS Strands Agents SDK & Cedar Guardrails*
 
 [![Framework: AWS Strands SDK](https://img.shields.io/badge/Framework-AWS%20Strands%20SDK%20v1.55-232F3E?style=for-the-badge&logo=amazon-aws)](https://strandsagents.com)
@@ -80,8 +82,6 @@ flowchart TB
 ### 1. AWS Strands Agents SDK Core
 - Uses official AWS open-source agent framework (`strands-agents`).
 - Features a **Multi-Model Brain Factory**: natively supports Amazon Bedrock (Claude 3.5 Sonnet / Haiku), Google Gemini 2.5 Flash, OpenAI GPT-4o, Anthropic Claude, and local Ollama.
-- Persistent session memory powered by `strands-redis-session-manager` with graceful local disk fallback.
-
 ### 2. Comprehensive SRE Diagnostic & Remediation Tools
 HealOps provides 9 production-grade SRE tools registered directly into the Strands Agent:
 1. `get_system_telemetry`: Real-time CPU, RAM, Disk, Load averages via `psutil`.
